@@ -1,11 +1,17 @@
 #include "mainwindow.h"
+#include "qglobal.h"
 #include "ui_mainwindow.h"
 
 #include "QSettings"
+#include "QFile"
+#include "QJsonDocument"
+#include "QJsonObject"
 
 #define ORG_NAME "VolAnd"
 #define APP_NAME "UserVerificator"
 #define GROUP_NAME "MainWindowSettings"
+#define UI_FILENAME "ui.json"
+
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -13,30 +19,34 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
-    this->readSettings();
+    if (!this->readSettings()) {
+        qWarning("Во время загрузки параметров формы произошла ошибка.");
+    }
 }
 
 MainWindow::~MainWindow()
 {
-    writeSettings();
+    if (!writeSettings()) {
+        qWarning("Во время записи параметров формы произошла ошибка.");
+    }
+
     delete ui;
 }
 
 
-
-
-/*void MainWindow::on_username_tv_textEdited(const QString &arg1)
-{
-    //
+bool MainWindow::writeSettings() {
+    return this->writeJSONSettings();
+    //this->writeQSettings();
 }
-*/
 
-void MainWindow::writeSettings()
+bool MainWindow::readSettings() {
+    return this->readJSONSettings();
+    //this->readQSettings();
+}
+
+bool MainWindow::writeQSettings()
 {
     QSettings settings(ORG_NAME, APP_NAME);
-    // Сохранить в INI-файле
-    //settings.setDefaultFormat(QSettings::IniFormat);
-    //settings.setPath(QSettings::IniFormat, QSettings::UserScope, ".");
 
     settings.beginGroup(GROUP_NAME);
 
@@ -64,9 +74,11 @@ void MainWindow::writeSettings()
     settings.setValue("browser",            ui->browser->currentIndex());
 
     settings.endGroup();
+
+    return true;
 }
 
-void MainWindow::readSettings()
+bool MainWindow::readQSettings()
 {
     QSettings settings(ORG_NAME, APP_NAME);
     settings.beginGroup(GROUP_NAME);
@@ -95,4 +107,80 @@ void MainWindow::readSettings()
     ui->browser->setCurrentIndex(settings.value("browser", -1).toInt());
 
     settings.endGroup();
+
+    return true;
+}
+
+bool MainWindow::writeJSONSettings()
+{
+    QFile saveFile(UI_FILENAME);
+
+    if (!saveFile.open(QIODevice::WriteOnly)) {
+        qWarning("Ошибка при открытии файла: %s", UI_FILENAME);
+        return false;
+    }
+
+//    QJsonDocument jsonDoc;
+    QJsonObject json;
+
+    QList<QLineEdit *> qEdits = this->findChildren<QLineEdit *>();
+
+    foreach(auto child, qEdits) {
+        QString child_name(child->objectName());
+        json.insert(child_name, child->text());
+    }
+
+    QList<QComboBox *> qCombos = this->findChildren<QComboBox *>();
+
+    foreach(auto child, qCombos) {
+        QString child_name(child->objectName());
+        json.insert(child_name, child->currentIndex());
+    }
+
+    saveFile.write(QJsonDocument(json).toJson());
+
+    return true;
+}
+
+bool MainWindow::readJSONSettings()
+{
+    QFile loadFile(UI_FILENAME);
+
+    if (!loadFile.open(QIODevice::ReadOnly)) {
+        qWarning("Ошибка при открытии файла: %s", UI_FILENAME);
+        return false;
+    }
+
+    QByteArray saveData = loadFile.readAll();
+
+    QJsonDocument loadDoc(QJsonDocument::fromJson(saveData));
+    QJsonObject json = loadDoc.object();
+
+    QList<QLineEdit *> qEdits = this->findChildren<QLineEdit *>();
+
+    foreach(auto child, qEdits) {
+        QString child_name(child->objectName());
+        if (json.contains(child_name) && json[child_name].isString()) {
+            child->setText(json[child_name].toString());
+        }
+        else {
+            qWarning("Проверьте наличие параметра %s и его тип в конфигурационном файле.", child_name.toStdString().c_str());
+            //return false;
+        }
+    }
+
+    QList<QComboBox *> qCombos = this->findChildren<QComboBox *>();
+
+    foreach(auto child, qCombos) {
+        QString child_name(child->objectName());
+        if (json.contains(child_name) && json[child_name].isDouble()) {
+            child->setCurrentIndex(json[child_name].toInt());
+        }
+        else {
+            qWarning("Проверьте наличие параметра %s и его тип в конфигурационном файле.", child_name.toStdString().c_str());
+            //return false;
+        }
+    }
+
+    return true;
 }

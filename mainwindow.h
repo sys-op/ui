@@ -16,12 +16,17 @@ public:
     ~MainWindow();
 
 private slots:
-    //void on_username_tv_textEdited(const QString &arg1);
 
 private:
     Ui::MainWindow *ui;
 
-    void writeSettings();
-    void readSettings();
+    bool writeSettings();
+    bool readSettings();
+
+    bool writeQSettings();
+    bool readQSettings();
+
+    bool writeJSONSettings();
+    bool readJSONSettings();
 };
 #endif // MAINWINDOW_H
